@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/* ------------------------------------------------------------------ */
+/* Qwen3-TTS Design System                                            */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  --color-bg-primary: #0f0f1a;
+  --color-bg-secondary: #1a1a2e;
+  --color-bg-card: #16213e;
+  --color-bg-input: #1a1a3e;
+  --color-accent: #6c5ce7;
+  --color-accent-hover: #7f6ff0;
+  --color-accent-glow: rgba(108, 92, 231, 0.35);
+  --color-success: #00cec9;
+  --color-warning: #fdcb6e;
+  --color-danger: #e17055;
+  --color-text-primary: #f0f0f5;
+  --color-text-secondary: #a0a0b8;
+  --color-text-muted: #6c6c8a;
+  --color-border: #2d2d4a;
+  --color-border-focus: #6c5ce7;
+  --font-display: "Inter", system-ui, sans-serif;
+}
+
+/* Global base */
+body {
+  background: var(--color-bg-primary);
+  color: var(--color-text-primary);
+  font-family: var(--font-display);
+}
+
+/* Glassmorphism card */
+.glass-card {
+  background: rgba(22, 33, 62, 0.65);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+}
+
+/* Glow button */
+.btn-glow {
+  background: var(--color-accent);
+  color: white;
+  border: none;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1.5rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0 0 0 var(--color-accent-glow);
+}
+.btn-glow:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  box-shadow: 0 0 24px 4px var(--color-accent-glow);
+  transform: translateY(-1px);
+}
+.btn-glow:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Pulse animation for loading */
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 8px 0 var(--color-accent-glow); }
+  50% { box-shadow: 0 0 24px 8px var(--color-accent-glow); }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}

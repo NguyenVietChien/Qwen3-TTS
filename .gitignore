@@ -22,3 +22,8 @@ wheels/
 .vscode/
 venv/
 env/
+.venv/
+node_modules/
+test_output/
+*.MP3
+*.mp3
