@@ -39,12 +39,20 @@ print(f"Reference audio: {ref_audio}")
 # (Leave empty string if you don't know the transcript — model will still work)
 ref_text = ""
 
-# ── Text to synthesize ──
-syn_text = "Xin chào mọi người, đây là bài test voice clone. Tôi muốn kiểm tra xem giọng nói được tổng hợp có giống giọng gốc hay không."
+# ── Text to synthesize (read from input.txt) ──
+input_file = os.path.join(os.path.dirname(__file__), "input.txt")
+if not os.path.exists(input_file):
+    print(f"ERROR: input.txt not found. Create it and paste your text inside.")
+    exit(1)
+with open(input_file, "r", encoding="utf-8") as f:
+    syn_text = f.read().strip()
+if not syn_text:
+    print("ERROR: input.txt is empty. Paste some text to synthesize.")
+    exit(1)
 syn_lang = "Auto"
 
 print(f"Generating voice clone...")
-print(f"  Text: {syn_text}")
+print(f"  Text: {syn_text[:100]}{'...' if len(syn_text) > 100 else ''}")
 
 t0 = time.time()
 wavs, sr = tts.generate_voice_clone(
