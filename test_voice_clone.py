@@ -29,7 +29,7 @@ print(f"Model loaded in {time.time()-t0:.1f}s")
 
 # ── Reference voice ──
 # Use local sample_voice.MP3 from the project root
-ref_audio = os.path.join(os.path.dirname(__file__), "sample_voice.MP3")
+ref_audio = os.path.join(os.path.dirname(__file__), "samples", "sample_voice.MP3")
 if not os.path.exists(ref_audio):
     print(f"ERROR: Reference audio not found: {ref_audio}")
     exit(1)
@@ -72,7 +72,19 @@ if device.startswith("cuda"):
     torch.cuda.synchronize()
 elapsed = time.time() - t0
 
-out_file = os.path.join(OUT_DIR, "voice_clone_test.wav")
+# Build output filename: Language_First10Words_HH_MM_dd_mm_yyyy.wav
+from datetime import datetime
+import re
+lang_tag = syn_lang if syn_lang != "Auto" else "Auto"
+words = re.split(r'\s+', syn_text.strip())
+first_10 = " ".join(words[:10])
+# Sanitize for filename
+first_10_safe = re.sub(r'[<>:"/\\|?*]', '', first_10).strip()
+first_10_safe = first_10_safe[:80]  # cap length
+timestamp = datetime.now().strftime("%H_%M_%d_%m_%Y")
+out_name = f"{lang_tag}_{first_10_safe}_{timestamp}.wav"
+out_file = os.path.join(OUT_DIR, out_name)
+
 sf.write(out_file, wavs[0], sr)
 print(f"\nDone! Generated in {elapsed:.1f}s")
 print(f"Output: {os.path.abspath(out_file)}")
