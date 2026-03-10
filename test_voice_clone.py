@@ -19,7 +19,18 @@ os.makedirs(OUT_DIR, exist_ok=True)
 # Auto-detect device
 device = "cuda:0" if torch.cuda.is_available() else "cpu"
 dtype = torch.bfloat16 if device.startswith("cuda") else torch.float32
-print(f"Device: {device}  |  dtype: {dtype}")
+
+print("=" * 50)
+if device.startswith("cuda"):
+    gpu_name = torch.cuda.get_device_name(0)
+    vram = torch.cuda.get_device_properties(0).total_mem / 1024**3
+    print(f"  🚀 GPU MODE: {gpu_name} ({vram:.1f} GB VRAM)")
+    print(f"  dtype: {dtype}")
+else:
+    print(f"  🐢 CPU MODE (no NVIDIA GPU detected)")
+    print(f"  dtype: {dtype}")
+    print(f"  ⚠ Warning: CPU mode is 5-10x slower than GPU!")
+print("=" * 50)
 
 # Load model (downloads on first run ~3.4GB)
 print(f"Loading model: {MODEL_PATH} ...")
