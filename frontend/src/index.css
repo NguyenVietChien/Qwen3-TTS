@@ -6,7 +6,7 @@
    ================================================================ */
 
 @theme {
-  /* ── Surface hierarchy — CapCut cold blue-grays ── */
+  /* ── Surface hierarchy — cold blue-grays ── */
   --color-bg-primary: #1a1d21;
   --color-bg-secondary: #252a2e;
   --color-bg-tertiary: #2d3238;
@@ -21,7 +21,6 @@
   --color-accent-dim: #00aad4;
   --color-accent-glow: rgba(0, 212, 255, 0.25);
   --color-accent-ghost: rgba(0, 212, 255, 0.12);
-  --gradient-brand: linear-gradient(135deg, #00d4ff 0%, #5ce1e6 100%);
 
   /* ── Text hierarchy ── */
   --color-text-primary: #ffffff;
@@ -37,69 +36,66 @@
   --color-warning: #ff9800;
   --color-danger: #f44336;
 
-  /* ── Shadows ── */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-glow: 0 0 20px 2px rgba(0, 212, 255, 0.2);
-
   /* ── Fonts ── */
   --font-display: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-/* ── Global resets ── */
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
-body {
-  background: var(--color-bg-primary);
-  color: var(--color-text-primary);
-  font-family: var(--font-display);
-  font-size: 14px;
-  line-height: 1.5;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-rendering: optimizeLegibility;
-  letter-spacing: -0.011em;
+/* ── Base layer — work WITH Tailwind, not against it ── */
+@layer base {
+  body {
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--font-display);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    letter-spacing: -0.011em;
+  }
 }
 
-/* ── Glassmorphism card ── */
-.glass-card {
-  background: rgba(30, 34, 39, 0.75);
-  backdrop-filter: blur(20px);
-  border: 1px solid var(--color-border);
-  border-radius: 1rem;
-  box-shadow: var(--shadow-sm);
-  transition: border-color 200ms ease, box-shadow 200ms ease;
-}
-.glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-}
+/* ── Component styles ── */
+@layer components {
+  /* Glassmorphism card */
+  .glass-card {
+    background: rgba(30, 34, 39, 0.75);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--color-border);
+    border-radius: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    transition: border-color 200ms ease, box-shadow 200ms ease;
+  }
+  .glass-card:hover {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
 
-/* ── Glow button (Cyan) ── */
-.btn-glow {
-  background: var(--gradient-brand);
-  color: #0a0a0a;
-  border: none;
-  border-radius: 0.75rem;
-  padding: 0.75rem 1.5rem;
-  font-weight: 700;
-  font-size: 0.9375rem;
-  cursor: pointer;
-  transition: all 200ms ease;
-  box-shadow: 0 0 0 0 var(--color-accent-glow);
-  letter-spacing: 0.01em;
-}
-.btn-glow:hover:not(:disabled) {
-  background: var(--color-accent-hover);
-  box-shadow: var(--shadow-glow);
-  transform: translateY(-1px);
-}
-.btn-glow:active:not(:disabled) {
-  transform: translateY(0);
-}
-.btn-glow:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+  /* Glow button (Cyan) */
+  .btn-glow {
+    background: linear-gradient(135deg, #00d4ff 0%, #5ce1e6 100%);
+    color: #0a0a0a;
+    border: none;
+    border-radius: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    font-weight: 700;
+    font-size: 0.9375rem;
+    cursor: pointer;
+    transition: all 200ms ease;
+    box-shadow: 0 0 0 0 var(--color-accent-glow);
+    letter-spacing: 0.01em;
+  }
+  .btn-glow:hover:not(:disabled) {
+    background: var(--color-accent-hover);
+    box-shadow: 0 0 20px 2px rgba(0, 212, 255, 0.2);
+    transform: translateY(-1px);
+  }
+  .btn-glow:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .btn-glow:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 }
 
 /* ── Custom scrollbar ── */
@@ -117,30 +113,11 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-fadeIn {
-  animation: fadeIn 400ms cubic-bezier(0.25, 0.1, 0.25, 1) both;
-}
-
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
-}
-
-/* ── Select/Input focus ring ── */
+/* ── Focus ring ── */
 select:focus, input:focus, textarea:focus {
   outline: none;
   border-color: var(--color-accent) !important;
   box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
-}
-
-/* ── Audio player theme ── */
-audio {
-  border-radius: 0.75rem;
-  width: 100%;
 }
 
 /* ── Checkbox accent ── */
