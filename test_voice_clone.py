@@ -72,11 +72,11 @@ wavs, sr = tts.generate_voice_clone(
     ref_audio=ref_audio,
     ref_text=ref_text,
     x_vector_only_mode=True,  # True = only uses voice characteristics (no transcript needed)
-    max_new_tokens=2048,
-    temperature=0.9,
-    top_k=50,
-    top_p=1.0,
-    repetition_penalty=1.05,
+    max_new_tokens=32768,  # ~45 min max audio (12 tokens/sec)
+    temperature=0.7,        # lower = more stable voice for long text
+    top_k=30,               # narrower selection = more consistent
+    top_p=0.9,              # cut low-probability tail
+    repetition_penalty=1.1, # stronger anti-repeat for long scripts
 )
 
 if device.startswith("cuda"):
