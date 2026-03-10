@@ -1,70 +1,149 @@
 @import "tailwindcss";
 
-/* ------------------------------------------------------------------ */
-/* Qwen3-TTS Design System                                            */
-/* ------------------------------------------------------------------ */
+/* ================================================================
+   Qwen3-TTS Design System — FlashCut Cold Dark Theme
+   Tokens ported from FlashCut Studio for visual consistency.
+   ================================================================ */
 
 @theme {
-  --color-bg-primary: #0f0f1a;
-  --color-bg-secondary: #1a1a2e;
-  --color-bg-card: #16213e;
-  --color-bg-input: #1a1a3e;
-  --color-accent: #6c5ce7;
-  --color-accent-hover: #7f6ff0;
-  --color-accent-glow: rgba(108, 92, 231, 0.35);
-  --color-success: #00cec9;
-  --color-warning: #fdcb6e;
-  --color-danger: #e17055;
-  --color-text-primary: #f0f0f5;
-  --color-text-secondary: #a0a0b8;
-  --color-text-muted: #6c6c8a;
-  --color-border: #2d2d4a;
-  --color-border-focus: #6c5ce7;
-  --font-display: "Inter", system-ui, sans-serif;
+  /* ── Surface hierarchy — CapCut cold blue-grays ── */
+  --color-bg-primary: #1a1d21;
+  --color-bg-secondary: #252a2e;
+  --color-bg-tertiary: #2d3238;
+  --color-bg-hover: #303539;
+  --color-bg-active: #353a3f;
+  --color-bg-card: #1e2227;
+  --color-bg-input: #2a2f35;
+
+  /* ── Brand accent — Cyan ── */
+  --color-accent: #00d4ff;
+  --color-accent-hover: #5ce1e6;
+  --color-accent-dim: #00aad4;
+  --color-accent-glow: rgba(0, 212, 255, 0.25);
+  --color-accent-ghost: rgba(0, 212, 255, 0.12);
+  --gradient-brand: linear-gradient(135deg, #00d4ff 0%, #5ce1e6 100%);
+
+  /* ── Text hierarchy ── */
+  --color-text-primary: #ffffff;
+  --color-text-secondary: rgba(255, 255, 255, 0.8);
+  --color-text-muted: rgba(255, 255, 255, 0.45);
+
+  /* ── Separators ── */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-focus: #00d4ff;
+
+  /* ── Status ── */
+  --color-success: #4caf50;
+  --color-warning: #ff9800;
+  --color-danger: #f44336;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25), 0 0 1px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-glow: 0 0 20px 2px rgba(0, 212, 255, 0.2);
+
+  /* ── Fonts ── */
+  --font-display: 'Inter', 'Segoe UI', system-ui, sans-serif;
 }
 
-/* Global base */
+/* ── Global resets ── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
 body {
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
   font-family: var(--font-display);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
 }
 
-/* Glassmorphism card */
+/* ── Glassmorphism card ── */
 .glass-card {
-  background: rgba(22, 33, 62, 0.65);
-  backdrop-filter: blur(16px);
+  background: rgba(30, 34, 39, 0.75);
+  backdrop-filter: blur(20px);
   border: 1px solid var(--color-border);
   border-radius: 1rem;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+.glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
 }
 
-/* Glow button */
+/* ── Glow button (Cyan) ── */
 .btn-glow {
-  background: var(--color-accent);
-  color: white;
+  background: var(--gradient-brand);
+  color: #0a0a0a;
   border: none;
   border-radius: 0.75rem;
   padding: 0.75rem 1.5rem;
-  font-weight: 600;
+  font-weight: 700;
+  font-size: 0.9375rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 200ms ease;
   box-shadow: 0 0 0 0 var(--color-accent-glow);
+  letter-spacing: 0.01em;
 }
 .btn-glow:hover:not(:disabled) {
   background: var(--color-accent-hover);
-  box-shadow: 0 0 24px 4px var(--color-accent-glow);
+  box-shadow: var(--shadow-glow);
   transform: translateY(-1px);
 }
+.btn-glow:active:not(:disabled) {
+  transform: translateY(0);
+}
 .btn-glow:disabled {
-  opacity: 0.5;
+  opacity: 0.4;
   cursor: not-allowed;
 }
 
-/* Pulse animation for loading */
+/* ── Custom scrollbar ── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+
+/* ── Animations ── */
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 8px 0 var(--color-accent-glow); }
-  50% { box-shadow: 0 0 24px 8px var(--color-accent-glow); }
+  50% { box-shadow: 0 0 28px 8px var(--color-accent-glow); }
 }
 .animate-pulse-glow {
   animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn {
+  animation: fadeIn 400ms cubic-bezier(0.25, 0.1, 0.25, 1) both;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ── Select/Input focus ring ── */
+select:focus, input:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent) !important;
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.15);
+}
+
+/* ── Audio player theme ── */
+audio {
+  border-radius: 0.75rem;
+  width: 100%;
+}
+
+/* ── Checkbox accent ── */
+input[type="checkbox"] {
+  accent-color: var(--color-accent);
 }
