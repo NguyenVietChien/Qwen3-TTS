@@ -12,7 +12,8 @@ from .celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/data/tts_outputs")
-MODEL_PATH = os.environ.get("MODEL_PATH", "Qwen/Qwen3-TTS")
+MODEL_PATH_CUSTOM = os.environ.get("MODEL_PATH_CUSTOM", "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice")
+MODEL_PATH_BASE = os.environ.get("MODEL_PATH_BASE", "Qwen/Qwen3-TTS-12Hz-0.6B-Base")
 DTYPE_STR = os.environ.get("DTYPE", "bfloat16")
 
 _env_device = os.environ.get("DEVICE", "")
@@ -31,20 +32,31 @@ _DTYPE_MAP = {
     "float32": torch.float32,
 }
 
-_tts_model = None
+_model_custom = None  # custom_voice + voice_design
+_model_base = None    # voice_clone
 
 
-def _get_tts():
-    global _tts_model
-    if _tts_model is None:
-        from qwen_tts import Qwen3TTSModel
-        dtype = _DTYPE_MAP.get(DTYPE_STR, torch.bfloat16)
-        logger.info("Loading model %s on %s (%s)…", MODEL_PATH, DEVICE, DTYPE_STR)
-        _tts_model = Qwen3TTSModel.from_pretrained(
-            MODEL_PATH, dtype=dtype, device_map=DEVICE
-        )
-        logger.info("Model loaded ✓  type=%s", getattr(_tts_model.model, "tts_model_type", "?"))
-    return _tts_model
+def _load_model(model_path: str):
+    from qwen_tts import Qwen3TTSModel
+    dtype = _DTYPE_MAP.get(DTYPE_STR, torch.bfloat16)
+    logger.info("Loading model %s on %s (%s)…", model_path, DEVICE, DTYPE_STR)
+    model = Qwen3TTSModel.from_pretrained(model_path, dtype=dtype, device_map=DEVICE)
+    logger.info("Model loaded ✓  type=%s", getattr(model.model, "tts_model_type", "?"))
+    return model
+
+
+def _get_custom_model():
+    global _model_custom
+    if _model_custom is None:
+        _model_custom = _load_model(MODEL_PATH_CUSTOM)
+    return _model_custom
+
+
+def _get_base_model():
+    global _model_base
+    if _model_base is None:
+        _model_base = _load_model(MODEL_PATH_BASE)
+    return _model_base
 
 
 def _save_wav(task_id: str, wavs, sr: int) -> str:
@@ -63,7 +75,7 @@ def task_generate(self, text: str, mode: str, language: str, gen_params: dict,
                   speaker: str = None, instruct: str = None):
     """Generate TTS audio (custom_voice or voice_design mode)."""
     self.update_state(state="PROCESSING", meta={"step": "loading_model"})
-    tts = _get_tts()
+    tts = _get_custom_model()
     gen_kw = _clean_gen_params(gen_params)
 
     self.update_state(state="PROCESSING", meta={"step": "generating"})
@@ -96,7 +108,7 @@ def task_voice_clone(self, text: str, language: str, ref_audio_path: str,
                      x_vector_only: bool = False):
     """Generate TTS audio via voice cloning."""
     self.update_state(state="PROCESSING", meta={"step": "loading_model"})
-    tts = _get_tts()
+    tts = _get_base_model()
     gen_kw = _clean_gen_params(gen_params)
 
     self.update_state(state="PROCESSING", meta={"step": "generating"})
