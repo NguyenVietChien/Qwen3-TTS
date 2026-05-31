@@ -11,9 +11,12 @@ services:
   api:
     build: .
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - OUTPUT_DIR=${OUTPUT_DIR:-/data/tts_outputs}
     volumes:
       - tts_outputs:/data/tts_outputs
     depends_on:
@@ -33,12 +36,19 @@ services:
       --concurrency=1
       --loglevel=info
       --queues=celery
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - MODEL_PATH_CUSTOM=${MODEL_PATH_CUSTOM:-Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice}
+      - MODEL_PATH_BASE=${MODEL_PATH_BASE:-Qwen/Qwen3-TTS-12Hz-0.6B-Base}
+      - DEVICE=${DEVICE:-cuda:0}
+      - DTYPE=${DTYPE:-bfloat16}
+      - OUTPUT_DIR=${OUTPUT_DIR:-/data/tts_outputs}
     volumes:
       - tts_outputs:/data/tts_outputs
-      - ${USERPROFILE}/.cache/huggingface:/root/.cache/huggingface
+      - ${USERPROFILE:-/root}/.cache/huggingface:/root/.cache/huggingface
     depends_on:
       redis:
         condition: service_healthy
