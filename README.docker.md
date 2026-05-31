@@ -14,15 +14,17 @@ cp .env.example .env
 # 2. Build và start với GPU
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 
-# 3. Kiểm tra
-curl http://localhost:8000/health
+# 3. Kiểm tra (qua Nginx port 80)
+curl http://localhost/health
 ```
+
+**Note**: Service expose qua Nginx port 80/443. Để dùng domain, config DNS A record trỏ về server IP.
 
 ## API Usage
 
 ### Submit TTS job (custom_voice / voice_design)
 ```bash
-curl -X POST http://localhost:8000/api/tts/generate \
+curl -X POST http://localhost/api/tts/generate \
   -H "Content-Type: application/json" \
   -d '{
     "text": "Hello world",
@@ -35,7 +37,7 @@ curl -X POST http://localhost:8000/api/tts/generate \
 
 ### Submit voice clone job
 ```bash
-curl -X POST http://localhost:8000/api/tts/voice-clone \
+curl -X POST http://localhost/api/tts/voice-clone \
   -F "text=Hello test" \
   -F "language=English" \
   -F "ref_text=Sample transcript" \
@@ -45,22 +47,28 @@ curl -X POST http://localhost:8000/api/tts/voice-clone \
 
 ### Poll task status
 ```bash
-curl http://localhost:8000/api/tasks/{task_id}
+curl http://localhost/api/tasks/{task_id}
 # → {"task_id": "...", "status": "done", "audio_url": "/api/tasks/{id}/audio"}
 ```
 
 ### Download audio
 ```bash
-curl -o output.wav http://localhost:8000/api/tasks/{task_id}/audio
+curl -o output.wav http://localhost/api/tasks/{task_id}/audio
 ```
 
 ## Architecture
 
 ```
-Client → FastAPI (port 8000) → Redis → Celery Worker (GPU)
-                                          ↓
-                                    /data/tts_outputs/{task_id}.wav
+Client → Nginx (port 80/443) → FastAPI (internal:8000) → Redis → Celery Worker (GPU)
+                                                                      ↓
+                                                            /data/tts_outputs/{task_id}.wav
 ```
+
+Services:
+- **nginx**: Reverse proxy với upload limit 50MB, SSL ready
+- **api**: FastAPI server, enqueue tasks
+- **worker**: Celery worker với GPU, load model và generate audio
+- **redis**: Message broker + result backend
 
 ## Environment Variables
 
