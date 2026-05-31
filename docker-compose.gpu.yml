@@ -1,0 +1,11 @@
+# GPU override — apply on the production GPU server:
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+services:
+  worker:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

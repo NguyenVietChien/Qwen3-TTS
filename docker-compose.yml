@@ -1,0 +1,49 @@
+services:
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - tts_outputs:/data/tts_outputs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A server.celery_app worker
+      --concurrency=1
+      --loglevel=info
+      --queues=celery
+    env_file: .env
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - tts_outputs:/data/tts_outputs
+      - ${USERPROFILE}/.cache/huggingface:/root/.cache/huggingface
+    depends_on:
+      redis:
+        condition: service_healthy
+
+volumes:
+  tts_outputs:

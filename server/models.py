@@ -18,6 +18,13 @@ class TTSMode(str, Enum):
     VOICE_CLONE = "voice_clone"
 
 
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    DONE = "done"
+    ERROR = "error"
+
+
 # ---------------------------------------------------------------------------
 # Request schemas
 # ---------------------------------------------------------------------------
@@ -72,3 +79,14 @@ class ModelInfoResponse(BaseModel):
     supported_languages: Optional[List[str]] = None
     supported_speakers: Optional[List[str]] = None
     status: str = "ready"
+
+
+# ---------------------------------------------------------------------------
+# Task response
+# ---------------------------------------------------------------------------
+
+class TaskResponse(BaseModel):
+    task_id: str
+    status: TaskStatus
+    audio_url: Optional[str] = None
+    error: Optional[str] = None
