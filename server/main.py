@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .routes.tasks import router as tasks_router
 from .routes.tts import router as tts_router
+from .routes.voices import router as voices_router
 
 logger = logging.getLogger("qwen3_tts_server")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
@@ -58,6 +59,7 @@ app.add_middleware(
 
 app.include_router(tts_router)
 app.include_router(tasks_router)
+app.include_router(voices_router)
 
 
 @app.get("/health")

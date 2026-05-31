@@ -25,5 +25,4 @@ env/
 .venv/
 node_modules/
 test_output/
-.env
 /data/

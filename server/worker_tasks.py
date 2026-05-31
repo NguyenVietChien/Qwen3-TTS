@@ -105,7 +105,7 @@ def task_generate(self, text: str, mode: str, language: str, gen_params: dict,
 @celery_app.task(bind=True, name="tts.voice_clone")
 def task_voice_clone(self, text: str, language: str, ref_audio_path: str,
                      gen_params: dict, ref_text: str = None,
-                     x_vector_only: bool = False):
+                     x_vector_only: bool = False, delete_after: bool = False):
     """Generate TTS audio via voice cloning."""
     self.update_state(state="PROCESSING", meta={"step": "loading_model"})
     tts = _get_base_model()
@@ -123,7 +123,7 @@ def task_voice_clone(self, text: str, language: str, ref_audio_path: str,
             **gen_kw,
         )
     finally:
-        if ref_audio_path and os.path.exists(ref_audio_path):
+        if delete_after and ref_audio_path and os.path.exists(ref_audio_path):
             os.unlink(ref_audio_path)
 
     out_path = _save_wav(self.request.id, wavs, sr)
