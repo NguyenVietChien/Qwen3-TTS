@@ -25,4 +25,9 @@ env/
 .venv/
 node_modules/
 test_output/
+.env
 /data/
+*.mp3
+*.MP3
+*.flac
+!samples/*.wav
