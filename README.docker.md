@@ -1,6 +1,6 @@
 # Qwen3-TTS Docker Service
 
-Async TTS service với task polling, Redis + Celery, GPU support.
+Async TTS service với task polling, Redis + Celery, GPU support, và React frontend.
 
 ## Quick Start (GPU Server)
 
@@ -11,14 +11,21 @@ cd Qwen3-TTS
 cp .env.example .env
 # Chỉnh MODEL_PATH trong .env nếu cần
 
-# 2. Build và start với GPU
+# 2. Build frontend
+cd frontend && npm install && npm run build && cd ..
+
+# 3. Build và start với GPU
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
 
-# 3. Kiểm tra (qua Nginx port 80)
+# 4. Kiểm tra
 curl http://localhost/health
+# Frontend: http://localhost
 ```
 
-**Note**: Service expose qua Nginx port 80/443. Để dùng domain, config DNS A record trỏ về server IP.
+**Note**: 
+- Frontend serve tại port 80 (root path)
+- API endpoints tại `/api/*`
+- Để dùng domain, config DNS A record trỏ về server IP
 
 ## API Usage
 
@@ -92,3 +99,33 @@ Tất cả endpoints hỗ trợ các params sau (optional):
 - Model load lần đầu sẽ tải từ HuggingFace (~vài GB), cache tại `/root/.cache/huggingface`
 - CPU inference rất chậm (~5-10 phút/câu), GPU nhanh hơn 30-50x
 - Task status: `pending` → `processing` → `done` | `error`
+
+## SSL Setup (Production)
+
+Trên server, sau khi service đã chạy:
+
+```bash
+# 1. Install Certbot
+sudo apt install -y certbot
+
+# 2. Stop nginx container tạm thời
+docker compose stop nginx
+
+# 3. Get SSL certificate
+sudo certbot certonly --standalone -d speech.flashcutai.com
+
+# 4. Copy certs vào project
+sudo mkdir -p ssl
+sudo cp /etc/letsencrypt/live/speech.flashcutai.com/fullchain.pem ssl/
+sudo cp /etc/letsencrypt/live/speech.flashcutai.com/privkey.pem ssl/
+sudo chmod 644 ssl/*.pem
+
+# 5. Update nginx.conf để enable SSL (thêm server block port 443)
+# 6. Restart nginx
+docker compose up -d nginx
+```
+
+Hoặc dùng Certbot với nginx plugin (tự động config):
+```bash
+sudo certbot --nginx -d speech.flashcutai.com
+```

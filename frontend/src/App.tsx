@@ -6,6 +6,8 @@ import {
   loadModel,
   generateTTS,
   generateVoiceClone,
+  pollTaskStatus,
+  downloadAudio,
   type ModelVariant,
 } from "./api";
 
@@ -46,6 +48,7 @@ export default function App() {
 
   // ── Generation state ──
   const [generating, setGenerating] = useState(false);
+  const [taskStatus, setTaskStatus] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -98,15 +101,16 @@ export default function App() {
     if (!text.trim()) return;
     setGenerating(true);
     setError(null);
+    setTaskStatus("Submitting...");
     if (audioUrl) URL.revokeObjectURL(audioUrl);
     setAudioUrl(null);
 
     try {
-      let blob: Blob;
+      let taskResponse;
 
       if (activeTab === "voice_clone") {
         if (!refAudio) throw new Error("Please upload a reference audio file");
-        blob = await generateVoiceClone({
+        taskResponse = await generateVoiceClone({
           text,
           language,
           refAudio,
@@ -114,7 +118,7 @@ export default function App() {
           xVectorOnly,
         });
       } else {
-        blob = await generateTTS({
+        taskResponse = await generateTTS({
           text,
           language,
           mode: activeTab,
@@ -126,14 +130,43 @@ export default function App() {
         });
       }
 
-      const url = URL.createObjectURL(blob);
-      setAudioUrl(url);
-      // Auto play
-      setTimeout(() => audioRef.current?.play(), 100);
+      const taskId = taskResponse.task_id;
+      setTaskStatus("Processing...");
+
+      // Poll task status
+      const pollInterval = setInterval(async () => {
+        try {
+          const status = await pollTaskStatus(taskId);
+
+          if (status.status === "done") {
+            clearInterval(pollInterval);
+            setTaskStatus("Downloading...");
+
+            const blob = await downloadAudio(taskId);
+            const url = URL.createObjectURL(blob);
+            setAudioUrl(url);
+            setTaskStatus("");
+            setGenerating(false);
+
+            // Auto play
+            setTimeout(() => audioRef.current?.play(), 100);
+          } else if (status.status === "error") {
+            clearInterval(pollInterval);
+            throw new Error(status.error || "Generation failed");
+          } else {
+            setTaskStatus(`Status: ${status.status}`);
+          }
+        } catch (e: any) {
+          clearInterval(pollInterval);
+          setError(e.message);
+          setGenerating(false);
+        }
+      }, 2000); // Poll every 2 seconds
+
     } catch (e: any) {
       setError(e.message);
-    } finally {
       setGenerating(false);
+      setTaskStatus("");
     }
   }, [text, language, speaker, instruct, activeTab, refAudio, refText, xVectorOnly, audioUrl]);
 
@@ -414,7 +447,7 @@ export default function App() {
               {generating ? (
                 <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Generating…
+                  {taskStatus || "Generating…"}
                 </span>
               ) : (
                 "🔊 Generate Speech"

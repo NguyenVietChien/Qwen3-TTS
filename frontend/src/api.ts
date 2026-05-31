@@ -1,6 +1,6 @@
 // Qwen3-TTS API service layer
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.VITE_API_BASE || "/api";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -28,6 +28,13 @@ export interface GenerationParams {
   temperature?: number;
   repetition_penalty?: number;
   max_new_tokens?: number;
+}
+
+export interface TaskResponse {
+  task_id: string;
+  status: "pending" | "processing" | "done" | "error";
+  audio_url: string | null;
+  error: string | null;
 }
 
 // ─── API functions ───────────────────────────────────────────────────
@@ -61,7 +68,7 @@ export async function generateTTS(params: {
   speaker?: string;
   instruct?: string;
   generation_params?: GenerationParams;
-}): Promise<Blob> {
+}): Promise<TaskResponse> {
   const res = await fetch(`${API_BASE}/tts/generate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -71,7 +78,7 @@ export async function generateTTS(params: {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || "Generation failed");
   }
-  return res.blob();
+  return res.json();
 }
 
 export async function generateVoiceClone(params: {
@@ -84,7 +91,7 @@ export async function generateVoiceClone(params: {
   top_p?: number;
   temperature?: number;
   max_new_tokens?: number;
-}): Promise<Blob> {
+}): Promise<TaskResponse> {
   const form = new FormData();
   form.append("text", params.text);
   form.append("language", params.language);
@@ -107,5 +114,17 @@ export async function generateVoiceClone(params: {
     const err = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(err.detail || "Voice clone failed");
   }
+  return res.json();
+}
+
+export async function pollTaskStatus(taskId: string): Promise<TaskResponse> {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}`);
+  if (!res.ok) throw new Error(`Failed to poll task: ${res.statusText}`);
+  return res.json();
+}
+
+export async function downloadAudio(taskId: string): Promise<Blob> {
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/audio`);
+  if (!res.ok) throw new Error(`Failed to download audio: ${res.statusText}`);
   return res.blob();
 }
