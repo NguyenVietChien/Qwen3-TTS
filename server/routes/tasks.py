@@ -37,7 +37,8 @@ async def get_task(task_id: str):
     error = None
 
     if result.state == "SUCCESS":
-        audio_url = f"/api/tasks/{task_id}/audio"
+        if (result.result or {}).get("audio_path"):
+            audio_url = f"/api/tasks/{task_id}/audio"
     elif result.state == "FAILURE":
         error = str(result.result)
 
