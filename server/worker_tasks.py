@@ -59,6 +59,83 @@ def _get_base_model():
     return _model_base
 
 
+VOICES_DIR = os.environ.get("VOICES_DIR", "/data/voices")
+
+
+@celery_app.task(bind=True, name="tts.preprocess_voice")
+def task_preprocess_voice(self, voice_name: str, ref_audio_paths: list,
+                          ref_text: str = None, x_vector_only: bool = True):
+    """Pre-compute VoiceClonePromptItem tensors and save to disk. Audio files deleted after."""
+    import re
+    import torch
+
+    self.update_state(state="PROCESSING", meta={"step": "loading_model"})
+    tts = _get_base_model()
+
+    self.update_state(state="PROCESSING", meta={"step": "extracting_voice"})
+
+    safe = re.sub(r"[^a-zA-Z0-9_\-]", "_", voice_name).strip("_")
+    voice_dir = os.path.join(VOICES_DIR, safe)
+    os.makedirs(voice_dir, exist_ok=True)
+
+    try:
+        ref_audio = ref_audio_paths if len(ref_audio_paths) > 1 else ref_audio_paths[0]
+        items = tts.create_voice_clone_prompt(
+            ref_audio=ref_audio,
+            ref_text=ref_text,
+            x_vector_only_mode=x_vector_only,
+        )
+
+        # Move tensors to CPU before saving
+        cpu_items = []
+        for item in items:
+            cpu_items.append({
+                "ref_code": item.ref_code.cpu() if item.ref_code is not None else None,
+                "ref_spk_embedding": item.ref_spk_embedding.cpu(),
+                "x_vector_only_mode": item.x_vector_only_mode,
+                "icl_mode": item.icl_mode,
+                "ref_text": item.ref_text,
+            })
+
+        prompt_path = os.path.join(voice_dir, "prompt.pt")
+        torch.save(cpu_items, prompt_path)
+        logger.info("Voice '%s' preprocessed → %s (%d samples)", safe, prompt_path, len(cpu_items))
+
+    finally:
+        # Delete uploaded audio files after extraction
+        for path in ref_audio_paths:
+            if path and os.path.exists(path):
+                os.unlink(path)
+
+    return {"voice_name": safe, "samples": len(cpu_items), "prompt_path": prompt_path}
+
+
+def _load_voice_prompt(voice_name: str):
+    """Load pre-computed VoiceClonePromptItem tensors from disk."""
+    import re
+    import torch
+    from qwen_tts.inference.qwen3_tts_model import VoiceClonePromptItem
+
+    safe = re.sub(r"[^a-zA-Z0-9_\-]", "_", voice_name).strip("_")
+    prompt_path = os.path.join(VOICES_DIR, safe, "prompt.pt")
+    if not os.path.exists(prompt_path):
+        return None
+
+    cpu_items = torch.load(prompt_path, map_location="cpu", weights_only=False)
+    device = torch.device(DEVICE)
+
+    items = []
+    for d in cpu_items:
+        items.append(VoiceClonePromptItem(
+            ref_code=d["ref_code"].to(device) if d["ref_code"] is not None else None,
+            ref_spk_embedding=d["ref_spk_embedding"].to(device),
+            x_vector_only_mode=d["x_vector_only_mode"],
+            icl_mode=d["icl_mode"],
+            ref_text=d["ref_text"],
+        ))
+    return items
+
+
 def _save_wav(task_id: str, wavs, sr: int) -> str:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     out_path = os.path.join(OUTPUT_DIR, f"{task_id}.wav")
@@ -103,20 +180,54 @@ def task_generate(self, text: str, mode: str, language: str, gen_params: dict,
 
 
 @celery_app.task(bind=True, name="tts.voice_clone")
-def task_voice_clone(self, text: str, language: str, ref_audio_paths: list,
-                     gen_params: dict, ref_text: str = None,
-                     x_vector_only: bool = False, delete_after: bool = False):
-    """Generate TTS audio via voice cloning. Accepts multiple reference audio files."""
+def task_voice_clone(self, text: str, language: str, gen_params: dict,
+                     voice_name: str = None, ref_audio_paths: list = None,
+                     ref_text: str = None, x_vector_only: bool = False,
+                     delete_after: bool = False):
+    """Generate TTS audio via voice cloning.
+
+    Priority:
+    1. voice_name with prompt.pt → use pre-computed tensors (fastest)
+    2. voice_name without prompt.pt → load audio files from voice dir
+    3. ref_audio_paths → use uploaded audio files
+    """
     self.update_state(state="PROCESSING", meta={"step": "loading_model"})
     tts = _get_base_model()
     gen_kw = _clean_gen_params(gen_params)
 
     self.update_state(state="PROCESSING", meta={"step": "generating"})
 
-    # Pass list directly — qwen_tts averages speaker embeddings across all samples
-    ref_audio = ref_audio_paths if len(ref_audio_paths) > 1 else ref_audio_paths[0]
-
     try:
+        # 1. Pre-computed prompt — fastest, no audio re-processing
+        if voice_name:
+            prompt_items = _load_voice_prompt(voice_name)
+            if prompt_items:
+                wavs, sr = tts.generate_voice_clone(
+                    text=text,
+                    language=language,
+                    voice_clone_prompt=prompt_items,
+                    **gen_kw,
+                )
+                out_path = _save_wav(self.request.id, wavs, sr)
+                return {"audio_path": out_path, "sample_rate": sr}
+
+        # 2. Fall back to audio files
+        paths = ref_audio_paths or []
+        if not paths and voice_name:
+            # Load audio from saved voice dir
+            import re
+            safe = re.sub(r"[^a-zA-Z0-9_\-]", "_", voice_name).strip("_")
+            voice_dir = os.path.join(VOICES_DIR, safe)
+            paths = sorted(
+                os.path.join(voice_dir, f)
+                for f in os.listdir(voice_dir)
+                if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".m4a")
+            ) if os.path.isdir(voice_dir) else []
+
+        if not paths:
+            raise ValueError("No reference audio available")
+
+        ref_audio = paths if len(paths) > 1 else paths[0]
         wavs, sr = tts.generate_voice_clone(
             text=text,
             language=language,
@@ -125,8 +236,9 @@ def task_voice_clone(self, text: str, language: str, ref_audio_paths: list,
             x_vector_only_mode=x_vector_only,
             **gen_kw,
         )
+
     finally:
-        if delete_after:
+        if delete_after and ref_audio_paths:
             for path in ref_audio_paths:
                 if path and os.path.exists(path):
                     os.unlink(path)

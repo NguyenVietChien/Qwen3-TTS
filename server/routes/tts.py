@@ -93,9 +93,11 @@ async def voice_clone(
     """
     delete_after = False
 
-    if voice_name:
-        ref_audio_paths = _find_voice_paths(voice_name)
-    elif ref_audio:
+    ref_audio_paths = None
+    delete_after = False
+
+    if not voice_name and ref_audio:
+        # One-off upload — save temporarily
         upload_dir = os.path.join(OUTPUT_DIR, "uploads")
         os.makedirs(upload_dir, exist_ok=True)
         ref_audio_paths = []
@@ -107,7 +109,7 @@ async def voice_clone(
                 f.write(content)
             ref_audio_paths.append(path)
         delete_after = True
-    else:
+    elif not voice_name:
         raise HTTPException(400, "Provide either voice_name or ref_audio")
 
     gen_params = {
@@ -126,8 +128,9 @@ async def voice_clone(
     task = task_voice_clone.delay(
         text=text,
         language=language,
-        ref_audio_paths=ref_audio_paths,
         gen_params=gen_params,
+        voice_name=voice_name,
+        ref_audio_paths=ref_audio_paths,
         ref_text=ref_text,
         x_vector_only=x_vector_only,
         delete_after=delete_after,

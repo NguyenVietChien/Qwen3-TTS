@@ -3,7 +3,8 @@
 
 import os
 import re
-from typing import List
+import uuid
+from typing import List, Optional
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
@@ -42,6 +43,7 @@ class VoiceInfo(BaseModel):
     name: str
     file_count: int
     files: List[VoiceFile]
+    prompt_ready: bool = False  # True if prompt.pt exists (pre-computed, faster generation)
 
 
 @router.get("", response_model=List[VoiceInfo])
@@ -63,7 +65,8 @@ async def list_voices():
                     size_kb=round(os.path.getsize(os.path.join(voice_dir, f)) / 1024, 1)
                 )
                 for f in files
-            ]
+            ],
+            prompt_ready=os.path.exists(os.path.join(voice_dir, "prompt.pt")),
         ))
     return voices
 
@@ -138,3 +141,56 @@ async def get_voice_file(name: str, filename: str):
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
     return FileResponse(path)
+
+
+@router.post("/{name}/preprocess")
+async def preprocess_voice(
+    name: str,
+    ref_text: Optional[str] = Form(None, description="Transcript (for ICL mode, leave empty for x-vector only)"),
+    x_vector_only: bool = Form(True, description="Use x-vector only — faster, no transcript needed"),
+    files: Optional[List[UploadFile]] = File(None, description="Audio files (optional, uses saved files if omitted)"),
+):
+    """
+    Pre-compute VoiceClonePromptItem tensors from audio samples.
+    Result saved as prompt.pt — subsequent voice-clone calls will use it automatically.
+    Audio files are deleted after extraction (not needed anymore).
+    Returns task_id to poll for completion.
+    """
+    from ..worker_tasks import task_preprocess_voice
+    from ..models import TaskResponse, TaskStatus
+
+    safe = _safe_name(name)
+    voice_dir = os.path.join(VOICES_DIR, safe)
+
+    ref_audio_paths = []
+
+    if files:
+        # Save uploaded files temporarily
+        upload_dir = os.path.join(voice_dir, "_tmp")
+        os.makedirs(upload_dir, exist_ok=True)
+        for upload in files:
+            ext = os.path.splitext(upload.filename or "")[-1].lower() or ".wav"
+            path = os.path.join(upload_dir, f"{uuid.uuid4()}{ext}")
+            content = await upload.read()
+            with open(path, "wb") as f:
+                f.write(content)
+            ref_audio_paths.append(path)
+    else:
+        # Use already-uploaded files in voice dir
+        if not os.path.isdir(voice_dir):
+            raise HTTPException(404, f"Voice '{name}' not found. Upload audio first via POST /api/voices")
+        ref_audio_paths = sorted(
+            os.path.join(voice_dir, f)
+            for f in os.listdir(voice_dir)
+            if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".m4a")
+        )
+        if not ref_audio_paths:
+            raise HTTPException(400, f"No audio files found for voice '{name}'")
+
+    task = task_preprocess_voice.delay(
+        voice_name=safe,
+        ref_audio_paths=ref_audio_paths,
+        ref_text=ref_text,
+        x_vector_only=x_vector_only,
+    )
+    return TaskResponse(task_id=task.id, status=TaskStatus.PENDING)

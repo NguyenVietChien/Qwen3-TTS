@@ -13,5 +13,5 @@ celery_app.conf.update(
     task_track_started=True,
     result_expires=3600,
     worker_prefetch_multiplier=1,
-    include=["server.worker_tasks"],
+    include=["server.worker_tasks"],  # registers tts.generate, tts.voice_clone, tts.preprocess_voice
 )
