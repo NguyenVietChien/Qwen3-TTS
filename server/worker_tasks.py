@@ -103,28 +103,33 @@ def task_generate(self, text: str, mode: str, language: str, gen_params: dict,
 
 
 @celery_app.task(bind=True, name="tts.voice_clone")
-def task_voice_clone(self, text: str, language: str, ref_audio_path: str,
+def task_voice_clone(self, text: str, language: str, ref_audio_paths: list,
                      gen_params: dict, ref_text: str = None,
                      x_vector_only: bool = False, delete_after: bool = False):
-    """Generate TTS audio via voice cloning."""
+    """Generate TTS audio via voice cloning. Accepts multiple reference audio files."""
     self.update_state(state="PROCESSING", meta={"step": "loading_model"})
     tts = _get_base_model()
     gen_kw = _clean_gen_params(gen_params)
 
     self.update_state(state="PROCESSING", meta={"step": "generating"})
 
+    # Pass list directly — qwen_tts averages speaker embeddings across all samples
+    ref_audio = ref_audio_paths if len(ref_audio_paths) > 1 else ref_audio_paths[0]
+
     try:
         wavs, sr = tts.generate_voice_clone(
             text=text,
             language=language,
-            ref_audio=ref_audio_path,
+            ref_audio=ref_audio,
             ref_text=ref_text,
             x_vector_only_mode=x_vector_only,
             **gen_kw,
         )
     finally:
-        if delete_after and ref_audio_path and os.path.exists(ref_audio_path):
-            os.unlink(ref_audio_path)
+        if delete_after:
+            for path in ref_audio_paths:
+                if path and os.path.exists(path):
+                    os.unlink(path)
 
     out_path = _save_wav(self.request.id, wavs, sr)
     return {"audio_path": out_path, "sample_rate": sr}
