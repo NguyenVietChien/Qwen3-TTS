@@ -1,6 +1,11 @@
 // Qwen3-TTS API service layer
 
 const API_BASE = import.meta.env.VITE_API_BASE || "/api";
+const API_KEY = import.meta.env.VITE_API_KEY || "";
+
+function apiHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return API_KEY ? { ...extra, "X-API-Key": API_KEY } : extra;
+}
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -40,7 +45,7 @@ export interface TaskResponse {
 // ─── API functions ───────────────────────────────────────────────────
 
 export async function fetchModels(): Promise<ModelListResponse> {
-  const res = await fetch(`${API_BASE}/models`);
+  const res = await fetch(`${API_BASE}/models`, { headers: apiHeaders() });
   if (!res.ok) throw new Error(`Failed to fetch models: ${res.statusText}`);
   return res.json();
 }
@@ -48,7 +53,7 @@ export async function fetchModels(): Promise<ModelListResponse> {
 export async function loadModel(modelPath: string) {
   const res = await fetch(`${API_BASE}/models/load`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ model_path: modelPath }),
   });
   if (!res.ok) throw new Error(`Failed to load model: ${res.statusText}`);
@@ -56,7 +61,7 @@ export async function loadModel(modelPath: string) {
 }
 
 export async function fetchModelInfo(): Promise<ModelInfoResponse> {
-  const res = await fetch(`${API_BASE}/tts/info`);
+  const res = await fetch(`${API_BASE}/tts/info`, { headers: apiHeaders() });
   if (!res.ok) throw new Error(`Failed to fetch info: ${res.statusText}`);
   return res.json();
 }
@@ -71,7 +76,7 @@ export async function generateTTS(params: {
 }): Promise<TaskResponse> {
   const res = await fetch(`${API_BASE}/tts/generate`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(params),
   });
   if (!res.ok) {
@@ -108,6 +113,7 @@ export async function generateVoiceClone(params: {
 
   const res = await fetch(`${API_BASE}/tts/voice-clone`, {
     method: "POST",
+    headers: apiHeaders(),
     body: form,
   });
   if (!res.ok) {
@@ -118,13 +124,13 @@ export async function generateVoiceClone(params: {
 }
 
 export async function pollTaskStatus(taskId: string): Promise<TaskResponse> {
-  const res = await fetch(`${API_BASE}/tasks/${taskId}`);
+  const res = await fetch(`${API_BASE}/tasks/${taskId}`, { headers: apiHeaders() });
   if (!res.ok) throw new Error(`Failed to poll task: ${res.statusText}`);
   return res.json();
 }
 
 export async function downloadAudio(taskId: string): Promise<Blob> {
-  const res = await fetch(`${API_BASE}/tasks/${taskId}/audio`);
+  const res = await fetch(`${API_BASE}/tasks/${taskId}/audio`, { headers: apiHeaders() });
   if (!res.ok) throw new Error(`Failed to download audio: ${res.statusText}`);
   return res.blob();
 }

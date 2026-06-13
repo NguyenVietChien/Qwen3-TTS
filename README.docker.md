@@ -27,6 +27,46 @@ curl http://localhost/health
 - API endpoints tại `/api/*`
 - Để dùng domain, config DNS A record trỏ về server IP
 
+## Domain Setup: speech.flashcutai.com
+
+This repo is preconfigured for `speech.flashcutai.com`.
+
+1. In DNS, create an `A` record:
+   - Name: `speech`
+   - Value: public IP of the GPU server
+
+2. Open firewall/security-group ports:
+   - TCP `80`
+   - TCP `443`
+
+3. Before certificates exist, run HTTP:
+
+```bash
+NGINX_CONF=./nginx.conf
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d --build
+curl http://speech.flashcutai.com/health
+```
+
+4. After certificates exist in `./ssl/fullchain.pem` and `./ssl/privkey.pem`, switch nginx to HTTPS:
+
+```bash
+NGINX_CONF=./nginx.https.conf
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d nginx
+curl https://speech.flashcutai.com/health
+```
+
+If `API_KEY` is enabled in `.env`, set the same `VITE_API_KEY` before building the frontend:
+
+```bash
+cd frontend
+cp .env.example .env.production
+npm install
+npm run build
+cd ..
+```
+
+`VITE_API_KEY` is embedded in browser JavaScript, so it is only a light abuse barrier, not strong authentication for a public site.
+
 ## API Usage
 
 ### Submit TTS job (custom_voice / voice_design)

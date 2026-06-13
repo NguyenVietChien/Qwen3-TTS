@@ -29,6 +29,14 @@ logger = logging.getLogger("qwen3_tts_server")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s  %(levelname)s  %(message)s")
 
 MODEL_PATH = os.environ.get("MODEL_PATH", "Qwen/Qwen3-TTS")
+CORS_ORIGINS = [
+    origin.strip()
+    for origin in os.environ.get(
+        "CORS_ORIGINS",
+        "https://speech.flashcutai.com,http://speech.flashcutai.com",
+    ).split(",")
+    if origin.strip()
+]
 
 AVAILABLE_MODELS = [
     {"id": "Qwen/Qwen3-TTS", "name": "Qwen3-TTS (Default)", "type": "custom_voice"},
@@ -51,8 +59,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=CORS_ORIGINS,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
