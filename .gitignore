@@ -31,3 +31,4 @@ test_output/
 *.MP3
 *.flac
 !samples/*.wav
+.codegraph/daemon.pid

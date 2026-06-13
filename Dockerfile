@@ -4,6 +4,7 @@ WORKDIR /app
 
 # System deps: sox for audio processing, libsndfile for soundfile
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     sox \
     libsox-fmt-all \
     libsndfile1 \
