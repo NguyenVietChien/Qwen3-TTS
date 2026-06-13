@@ -6,11 +6,13 @@ import re
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-router = APIRouter(prefix="/api/voices", tags=["voices"])
+from ..auth import require_api_key
+
+router = APIRouter(prefix="/api/voices", tags=["voices"], dependencies=[Depends(require_api_key)])
 
 VOICES_DIR = os.environ.get("VOICES_DIR", "/data/voices")
 
@@ -23,6 +25,13 @@ def _safe_name(name: str) -> str:
 
 def _voice_dir(name: str) -> str:
     return os.path.join(VOICES_DIR, _safe_name(name))
+
+
+def _safe_filename(filename: str) -> str:
+    name = os.path.basename(filename)
+    if name in ("", ".", "..") or "/" in filename or "\\" in filename:
+        raise HTTPException(400, "Invalid filename")
+    return name
 
 
 def _list_audio_files(voice_dir: str) -> List[str]:
@@ -92,7 +101,9 @@ async def upload_voice(
 
     saved = []
     for i, upload in enumerate(files):
-        ext = os.path.splitext(upload.filename or "")[-1].lower() or ".wav"
+        ext = os.path.splitext(upload.filename or "")[-1].lower()
+        if ext not in AUDIO_EXTS:
+            raise HTTPException(400, f"Unsupported file type '{ext}'. Allowed: {', '.join(AUDIO_EXTS)}")
         filename = f"{safe}_{idx_start + i:03d}{ext}"
         out_path = os.path.join(voice_dir, filename)
         content = await upload.read()
@@ -126,6 +137,7 @@ async def delete_voice(name: str):
 async def delete_voice_file(name: str, filename: str):
     """Delete a single sample file from a voice."""
     safe = _safe_name(name)
+    filename = _safe_filename(filename)
     path = os.path.join(VOICES_DIR, safe, filename)
     if not os.path.exists(path):
         raise HTTPException(404, f"File '{filename}' not found in voice '{name}'")
@@ -137,6 +149,7 @@ async def delete_voice_file(name: str, filename: str):
 async def get_voice_file(name: str, filename: str):
     """Download a specific sample file."""
     safe = _safe_name(name)
+    filename = _safe_filename(filename)
     path = os.path.join(VOICES_DIR, safe, filename)
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
@@ -169,7 +182,9 @@ async def preprocess_voice(
         upload_dir = os.path.join(voice_dir, "_tmp")
         os.makedirs(upload_dir, exist_ok=True)
         for upload in files:
-            ext = os.path.splitext(upload.filename or "")[-1].lower() or ".wav"
+            ext = os.path.splitext(upload.filename or "")[-1].lower()
+            if ext not in AUDIO_EXTS:
+                raise HTTPException(400, f"Unsupported file type '{ext}'. Allowed: {', '.join(AUDIO_EXTS)}")
             path = os.path.join(upload_dir, f"{uuid.uuid4()}{ext}")
             content = await upload.read()
             with open(path, "wb") as f:

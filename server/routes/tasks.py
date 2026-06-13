@@ -4,13 +4,14 @@
 import os
 
 from celery.result import AsyncResult
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
 
+from ..auth import require_api_key
 from ..celery_app import celery_app
 from ..models import TaskResponse, TaskStatus
 
-router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+router = APIRouter(prefix="/api/tasks", tags=["tasks"], dependencies=[Depends(require_api_key)])
 
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/data/tts_outputs")
 

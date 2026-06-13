@@ -8,6 +8,7 @@ import soundfile as sf
 import torch
 
 from .celery_app import celery_app
+from .chunking import merge_wavs, resolve_chunk_profile, split_text, validate_chunks
 
 logger = logging.getLogger(__name__)
 
@@ -147,34 +148,53 @@ def _clean_gen_params(gen_params: dict) -> dict:
     return {k: v for k, v in (gen_params or {}).items() if v is not None}
 
 
+def _generate_chunked(self, text: str, language: str, chunk_gap_ms: int, generate_fn):
+    """Split `text` if needed, run `generate_fn(chunk_text) -> (wavs, sr)` per
+    chunk, and merge the results into a single (wavs, sr) pair.
+
+    `generate_fn` should return the model's (wavs, sr) for one chunk of text;
+    only wavs[0] from each chunk is kept and merged.
+    """
+    profile = resolve_chunk_profile("qwen3", text, language)
+    chunks = split_text(text, profile) or [text]
+    validate_chunks(chunks, profile)
+
+    wavs_list = []
+    sr = None
+    for i, chunk_text in enumerate(chunks):
+        self.update_state(
+            state="PROCESSING",
+            meta={"step": "generating", "chunk": i + 1, "total_chunks": len(chunks)},
+        )
+        wavs, sr = generate_fn(chunk_text)
+        wavs_list.append(wavs[0])
+
+    merged = merge_wavs(wavs_list, sr, gap_ms=chunk_gap_ms)
+    return [merged], sr
+
+
 @celery_app.task(bind=True, name="tts.generate")
 def task_generate(self, text: str, mode: str, language: str, gen_params: dict,
-                  speaker: str = None, instruct: str = None):
+                  speaker: str = None, instruct: str = None, chunk_gap_ms: int = 0):
     """Generate TTS audio (custom_voice or voice_design mode)."""
     self.update_state(state="PROCESSING", meta={"step": "loading_model"})
     tts = _get_custom_model()
     gen_kw = _clean_gen_params(gen_params)
 
-    self.update_state(state="PROCESSING", meta={"step": "generating"})
-
     if mode == "custom_voice":
-        wavs, sr = tts.generate_custom_voice(
-            text=text,
-            speaker=speaker,
-            language=language,
-            instruct=instruct,
-            **gen_kw,
-        )
+        def generate_fn(chunk_text):
+            return tts.generate_custom_voice(
+                text=chunk_text, speaker=speaker, language=language, instruct=instruct, **gen_kw,
+            )
     elif mode == "voice_design":
-        wavs, sr = tts.generate_voice_design(
-            text=text,
-            instruct=instruct,
-            language=language,
-            **gen_kw,
-        )
+        def generate_fn(chunk_text):
+            return tts.generate_voice_design(
+                text=chunk_text, instruct=instruct, language=language, **gen_kw,
+            )
     else:
         raise ValueError(f"Unknown mode: {mode}")
 
+    wavs, sr = _generate_chunked(self, text, language, chunk_gap_ms, generate_fn)
     out_path = _save_wav(self.request.id, wavs, sr)
     return {"audio_path": out_path, "sample_rate": sr}
 
@@ -183,7 +203,7 @@ def task_generate(self, text: str, mode: str, language: str, gen_params: dict,
 def task_voice_clone(self, text: str, language: str, gen_params: dict,
                      voice_name: str = None, ref_audio_paths: list = None,
                      ref_text: str = None, x_vector_only: bool = False,
-                     delete_after: bool = False):
+                     delete_after: bool = False, chunk_gap_ms: int = 0):
     """Generate TTS audio via voice cloning.
 
     Priority:
@@ -195,47 +215,40 @@ def task_voice_clone(self, text: str, language: str, gen_params: dict,
     tts = _get_base_model()
     gen_kw = _clean_gen_params(gen_params)
 
-    self.update_state(state="PROCESSING", meta={"step": "generating"})
-
     try:
         # 1. Pre-computed prompt — fastest, no audio re-processing
-        if voice_name:
-            prompt_items = _load_voice_prompt(voice_name)
-            if prompt_items:
-                wavs, sr = tts.generate_voice_clone(
-                    text=text,
-                    language=language,
-                    voice_clone_prompt=prompt_items,
-                    **gen_kw,
+        prompt_items = _load_voice_prompt(voice_name) if voice_name else None
+        if prompt_items:
+            def generate_fn(chunk_text):
+                return tts.generate_voice_clone(
+                    text=chunk_text, language=language, voice_clone_prompt=prompt_items, **gen_kw,
                 )
-                out_path = _save_wav(self.request.id, wavs, sr)
-                return {"audio_path": out_path, "sample_rate": sr}
+        else:
+            # 2. Fall back to audio files
+            paths = ref_audio_paths or []
+            if not paths and voice_name:
+                # Load audio from saved voice dir
+                import re
+                safe = re.sub(r"[^a-zA-Z0-9_\-]", "_", voice_name).strip("_")
+                voice_dir = os.path.join(VOICES_DIR, safe)
+                paths = sorted(
+                    os.path.join(voice_dir, f)
+                    for f in os.listdir(voice_dir)
+                    if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".m4a")
+                ) if os.path.isdir(voice_dir) else []
 
-        # 2. Fall back to audio files
-        paths = ref_audio_paths or []
-        if not paths and voice_name:
-            # Load audio from saved voice dir
-            import re
-            safe = re.sub(r"[^a-zA-Z0-9_\-]", "_", voice_name).strip("_")
-            voice_dir = os.path.join(VOICES_DIR, safe)
-            paths = sorted(
-                os.path.join(voice_dir, f)
-                for f in os.listdir(voice_dir)
-                if os.path.splitext(f)[1].lower() in (".wav", ".mp3", ".flac", ".m4a")
-            ) if os.path.isdir(voice_dir) else []
+            if not paths:
+                raise ValueError("No reference audio available")
 
-        if not paths:
-            raise ValueError("No reference audio available")
+            ref_audio = paths if len(paths) > 1 else paths[0]
 
-        ref_audio = paths if len(paths) > 1 else paths[0]
-        wavs, sr = tts.generate_voice_clone(
-            text=text,
-            language=language,
-            ref_audio=ref_audio,
-            ref_text=ref_text,
-            x_vector_only_mode=x_vector_only,
-            **gen_kw,
-        )
+            def generate_fn(chunk_text):
+                return tts.generate_voice_clone(
+                    text=chunk_text, language=language, ref_audio=ref_audio,
+                    ref_text=ref_text, x_vector_only_mode=x_vector_only, **gen_kw,
+                )
+
+        wavs, sr = _generate_chunked(self, text, language, chunk_gap_ms, generate_fn)
 
     finally:
         if delete_after and ref_audio_paths:

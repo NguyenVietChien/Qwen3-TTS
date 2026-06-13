@@ -6,8 +6,9 @@ import re
 import uuid
 from typing import List, Optional
 
-from fastapi import APIRouter, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
+from ..auth import require_api_key
 from ..models import TaskResponse, TaskStatus, TTSMode, TTSRequest
 from ..worker_tasks import task_generate, task_voice_clone
 
@@ -16,7 +17,7 @@ VOICES_DIR = os.environ.get("VOICES_DIR", "/data/voices")
 
 AUDIO_EXTS = (".wav", ".mp3", ".flac", ".m4a")
 
-router = APIRouter(prefix="/api/tts", tags=["tts"])
+router = APIRouter(prefix="/api/tts", tags=["tts"], dependencies=[Depends(require_api_key)])
 
 
 def _find_voice_paths(voice_name: str) -> List[str]:
@@ -57,6 +58,7 @@ async def generate_tts(req: TTSRequest):
         gen_params=gen_params,
         speaker=req.speaker,
         instruct=req.instruct,
+        chunk_gap_ms=req.chunk_gap_ms,
     )
     return TaskResponse(task_id=task.id, status=TaskStatus.PENDING)
 
@@ -81,6 +83,7 @@ async def voice_clone(
     subtalker_top_k: Optional[int] = Form(None),
     subtalker_top_p: Optional[float] = Form(None),
     subtalker_temperature: Optional[float] = Form(None),
+    chunk_gap_ms: int = Form(0, description="Silence (ms) inserted between auto-split long-text chunks"),
 ):
     """
     Submit a voice-clone TTS task. Returns task_id immediately.
@@ -102,7 +105,9 @@ async def voice_clone(
         os.makedirs(upload_dir, exist_ok=True)
         ref_audio_paths = []
         for upload in ref_audio:
-            ext = os.path.splitext(upload.filename or "")[-1].lower() or ".wav"
+            ext = os.path.splitext(upload.filename or "")[-1].lower()
+            if ext not in AUDIO_EXTS:
+                raise HTTPException(400, f"Unsupported file type '{ext}'. Allowed: {', '.join(AUDIO_EXTS)}")
             path = os.path.join(upload_dir, f"{uuid.uuid4()}{ext}")
             content = await upload.read()
             with open(path, "wb") as f:
@@ -134,5 +139,6 @@ async def voice_clone(
         ref_text=ref_text,
         x_vector_only=x_vector_only,
         delete_after=delete_after,
+        chunk_gap_ms=chunk_gap_ms,
     )
     return TaskResponse(task_id=task.id, status=TaskStatus.PENDING)

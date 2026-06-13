@@ -58,6 +58,7 @@ class TTSRequest(BaseModel):
     speaker: Optional[str] = Field(None, description="Speaker name (custom_voice mode)")
     instruct: Optional[str] = Field(None, description="Voice style instruction (voice_design / custom_voice)")
     generation_params: Optional[GenerationParams] = None
+    chunk_gap_ms: int = Field(0, ge=0, description="Silence (ms) inserted between auto-split long-text chunks")
 
 
 class VoiceCloneRequest(BaseModel):
@@ -67,6 +68,7 @@ class VoiceCloneRequest(BaseModel):
     ref_text: Optional[str] = Field(None, description="Transcript of the reference audio")
     x_vector_only: bool = Field(False, description="Use x-vector only (no ICL)")
     generation_params: Optional[GenerationParams] = None
+    chunk_gap_ms: int = Field(0, ge=0, description="Silence (ms) inserted between auto-split long-text chunks")
 
 
 # ---------------------------------------------------------------------------
